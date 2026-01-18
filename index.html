@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Continuous QR Scanner with Excel Export</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body { font-family: Arial; background:#0b0b0b; color:#fff; text-align:center; }
+video { width:100%; max-width:420px; border:2px solid #0f0; margin-bottom:10px; }
+table { width:100%; max-width:420px; margin:auto; border-collapse:collapse; margin-top:10px; }
+th, td { border:1px solid #333; padding:6px; font-size:14px; }
+th { background:#111; }
+select, button { padding:6px; margin:5px; font-size:16px; }
+button { cursor:pointer; }
+</style>
+</head>
+
+<body>
+
+<h2>Live QR Scanner</h2>
+
+<!-- YEAR SELECTOR -->
+<label>Select Year:</label><br>
+<select id="yearSelect">
+  <option value="Year 1">Year 1</option>
+  <option value="Year 2">Year 2</option>
+  <option value="Year 3">Year 3</option>
+  <option value="Year 4">Year 4</option>
+</select>
+
+<br>
+<button onclick="exportExcel()">Export to Excel</button>
+
+<video id="video" autoplay></video>
+<canvas id="canvas" hidden></canvas>
+
+<p id="status">Scanning…</p>
+
+<table>
+<thead>
+<tr>
+  <th>#</th>
+  <th>QR Data</th>
+  <th>Year</th>
+  <th>Time</th>
+</tr>
+</thead>
+<tbody id="log"></tbody>
+</table>
+
+<!-- QR Scanner -->
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<!-- Excel Export -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<script>
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const log = document.getElementById("log");
+const status = document.getElementById("status");
+const yearSelect = document.getElementById("yearSelect");
+
+let lastScan = "";
+let scanLock = false;
+let count = 0;
+
+// Start camera
+navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+.then(stream => {
+  video.srcObject = stream;
+  requestAnimationFrame(scan);
+})
+.catch(err => status.innerText = "Camera error: " + err);
+
+function scan() {
+  if (video.readyState === video.HAVE_ENOUGH_DATA && !scanLock) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, canvas.width, canvas.height);
+
+    if (code && code.data !== lastScan) {
+      lastScan = code.data;
+      scanLock = true;
+      count++;
+
+      const selectedYear = yearSelect.value;
+
+      const row = log.insertRow(-1); // append at bottom
+      row.innerHTML = `
+        <td>${count}</td>
+        <td>${code.data}</td>
+        <td>${selectedYear}</td>
+        <td>${new Date().toLocaleTimeString()}</td>
+      `;
+
+      status.innerText = "Scanned ✓";
+
+      setTimeout(() => {
+        scanLock = false;
+        status.innerText = "Scanning…";
+      }, 800); // prevents double reads
+    }
+  }
+  requestAnimationFrame(scan);
+}
+
+// Excel export
+function exportExcel() {
+  const rows = [["#", "QR Data", "Year", "Time"]];
+  const tableRows = document.querySelectorAll("#log tr");
+
+  tableRows.forEach(tr => {
+    const cells = tr.querySelectorAll("td");
+    rows.push([
+      cells[0].innerText,
+      cells[1].innerText,
+      cells[2].innerText,
+      cells[3].innerText
+    ]);
+  });
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, "Scans");
+
+  XLSX.writeFile(wb, "qr_scans.xlsx");
+}
+</script>
+
+</body>
+</html>
