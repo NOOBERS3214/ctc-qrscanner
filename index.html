@@ -20,7 +20,6 @@ button { cursor:pointer; }
 
 <h2>CTC Register Taker</h2>
 
-<!-- YEAR SELECTOR -->
 <label>Select Year:</label><br>
 <select id="yearSelect">
   <option value="Year 1">Year 1</option>
@@ -30,12 +29,13 @@ button { cursor:pointer; }
 </select>
 
 <br>
+<button onclick="startScanner()">Start Scanner</button>
 <button onclick="exportExcel()">Export to Excel</button>
 
 <video id="video" autoplay></video>
 <canvas id="canvas" hidden></canvas>
 
-<p id="status">Scanning…</p>
+<p id="status">Waiting to start…</p>
 
 <table>
 <thead>
@@ -55,81 +55,5 @@ button { cursor:pointer; }
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <script>
-const video = document.getElementById("video");
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-const log = document.getElementById("log");
-const status = document.getElementById("status");
-const yearSelect = document.getElementById("yearSelect");
+const video = document.getE
 
-let lastScan = "";
-let scanLock = false;
-let count = 0;
-
-// Start camera
-navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-.then(stream => {
-  video.srcObject = stream;
-  requestAnimationFrame(scan);
-})
-.catch(err => status.innerText = "Camera error: " + err);
-
-function scan() {
-  if (video.readyState === video.HAVE_ENOUGH_DATA && !scanLock) {
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(imageData.data, canvas.width, canvas.height);
-
-    if (code && code.data !== lastScan) {
-      lastScan = code.data;
-      scanLock = true;
-      count++;
-
-      const selectedYear = yearSelect.value;
-
-      const row = log.insertRow(-1); // append at bottom
-      row.innerHTML = `
-        <td>${count}</td>
-        <td>${code.data}</td>
-        <td>${selectedYear}</td>
-        <td>${new Date().toLocaleTimeString()}</td>
-      `;
-
-      status.innerText = "Scanned ✓";
-
-      setTimeout(() => {
-        scanLock = false;
-        status.innerText = "Scanning…";
-      }, 800); // prevents double reads
-    }
-  }
-  requestAnimationFrame(scan);
-}
-
-// Excel export
-function exportExcel() {
-  const rows = [["#", "QR Data", "Year", "Time"]];
-  const tableRows = document.querySelectorAll("#log tr");
-
-  tableRows.forEach(tr => {
-    const cells = tr.querySelectorAll("td");
-    rows.push([
-      cells[0].innerText,
-      cells[1].innerText,
-      cells[2].innerText,
-      cells[3].innerText
-    ]);
-  });
-
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  XLSX.utils.book_append_sheet(wb, ws, "Scans");
-
-  XLSX.writeFile(wb, "qr_scans.xlsx");
-}
-</script>
-
-</body>
-</html>
